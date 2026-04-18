@@ -1,0 +1,131 @@
+===========================================================================
+ OUT-OF-SAMPLE PERFORMANCE (VALIDATION)
+===========================================================================
+  Period          : 2025-12-29 01:25:00  →  2026-04-10 20:25:00
+  Total Bars      : 19,992
+  Trading Days    : 69.4
+---------------------------------------------------------------------------
+  PREDICTIVE ACCURACY (15M Ahead)
+    Total Signals       : 6,789 (97.8 per day)
+    Correct Predictions : 3,512
+    Incorrect Preds     : 3,277
+    OVERALL WIN RATE    : 51.73%
+    Win-Rate Stability  : 59.8%
+
+  DIRECTIONAL BREAKDOWN
+    Long (Up) Signals   : 3,724  (Win Rate: 52.42%)
+    Short (Down) Signals: 3,065  (Win Rate: 50.90%)
+
+  CONSECUTIVE STREAKS
+    Max Consec Correct  : 20
+    Max Consec Incorrect: 15
+---------------------------------------------------------------------------
+
+===========================================================================
+ IN-SAMPLE PERFORMANCE (TRAINING)
+===========================================================================
+  Period          : 2024-11-08 18:00:00  →  2025-12-29 01:20:00
+  Total Bars      : 79,966
+  Trading Days    : 277.7
+---------------------------------------------------------------------------
+  PREDICTIVE ACCURACY (15M Ahead)
+    Total Signals       : 26,235 (94.5 per day)
+    Correct Predictions : 13,052
+    Incorrect Preds     : 13,183
+    OVERALL WIN RATE    : 49.75%
+    Win-Rate Stability  : 60.5%
+
+  DIRECTIONAL BREAKDOWN
+    Long (Up) Signals   : 15,053  (Win Rate: 50.90%)
+    Short (Down) Signals: 11,182  (Win Rate: 48.20%)
+
+  CONSECUTIVE STREAKS
+    Max Consec Correct  : 18
+    Max Consec Incorrect: 19
+---------------------------------------------------------------------------
+
+  OVERFITTING ANALYSIS
+    In-Sample Win Rate      : 49.75%
+    Out-of-Sample Win Rate  : 51.73%
+    Performance Drop-off    : -1.98%
+    (A small drop-off indicates a more robust strategy)
+
+===========================================================================
+ AUTORESEARCH META-ANALYSIS & CORRELATIONS (from In-Sample Data)
+===========================================================================
+  Total Experiments Conducted : 656
+  Valid Iterations (Signals>0): 656
+
+  CURRENT BEST DISCOVERED PARAMETERS (from In-Sample training):
+  -------------------------------------------------------------------------
+    ema_fast           : 4
+    ema_slow           : 82
+    macd_fast          : 22
+    macd_slow          : 25
+    macd_signal        : 13
+    adx_period         : 11
+    adx_thresh         : 25.75761689550805
+    stoch_k            : 17
+    stoch_d            : 5
+    stoch_smooth       : 9
+    bb_period          : 27
+    bb_stdev           : 1.0
+    atr_period         : 21
+    atr_mult           : 0.5420184300352439
+    rsi_period         : 5
+    rsi_oversold       : 29.0
+    rsi_overbought     : 79.0
+
+  PARAMETER CORRELATION TO IN-SAMPLE WIN-RATE (Pearson)
+  -------------------------------------------------------------------------
+  Positive (+) = Higher parameter value correlates to higher Win Rate.
+  Negative (-) = Lower parameter value correlates to higher Win Rate.
+  -------------------------------------------------------------------------
+    stoch_d            :   0.30  (Moderate Positive)
+    bb_period          :   0.29  (Moderate Positive)
+    stoch_k            :   0.29  (Moderate Positive)
+    stoch_smooth       :   0.24  (Moderate Positive)
+    macd_signal        :   0.21  (Moderate Positive)
+    macd_fast          :   0.18  (Weak Positive)
+    atr_period         :   0.17  (Weak Positive)
+    ema_slow           :   0.11  (Weak Positive)
+    macd_slow          :   0.08  (Neutral)
+    ema_fast           :  -0.06  (Neutral)
+    bb_stdev           :  -0.11  (Weak Negative)
+    adx_thresh         :  -0.12  (Weak Negative)
+    atr_mult           :  -0.16  (Weak Negative)
+    adx_period         :  -0.26  (Moderate Negative)
+
+  PARAMETER SPACE EXPLORATION COVERAGE
+  -------------------------------------------------------------------------
+    ema_fast           | Allowed: [3, 27] | Tested: [3.0, 27.0] | Cov: 100%  << AT MIN BOUND
+    ema_slow           | Allowed: [30, 100] | Tested: [33.0, 100.0] | Cov:  96%  
+    macd_fast          | Allowed: [22, 30] | Tested: [8.0, 25.0] | Cov: 212%  << AT MIN BOUND
+    macd_slow          | Allowed: [25, 60] | Tested: [25.0, 46.0] | Cov:  60%  << AT MIN BOUND
+    macd_signal        | Allowed: [12, 16] | Tested: [7.0, 15.0] | Cov: 200%  
+    adx_period         | Allowed: [11, 18] | Tested: [11.0, 18.0] | Cov: 100%  << AT MIN BOUND
+    adx_thresh         | Allowed: [25, 45] | Tested: [15.0, 37.5] | Cov: 113%  << AT MIN BOUND
+    stoch_k            | Allowed: [16.5, 20.5] | Tested: [12.0, 20.0] | Cov: 200%  
+    stoch_d            | Allowed: [2, 7] | Tested: [2.0, 7.0] | Cov: 100%  
+    stoch_smooth       | Allowed: [2, 6] | Tested: [3.0, 13.0] | Cov: 250%  >> AT MAX BOUND
+    bb_period          | Allowed: [20, 60] | Tested: [20.0, 40.0] | Cov:  50%  
+    bb_stdev           | Allowed: [1, 3] | Tested: [1.0, 2.4] | Cov:  70%  << AT MIN BOUND
+    atr_period         | Allowed: [14, 30] | Tested: [14.0, 30.0] | Cov: 100%  
+    atr_mult           | Allowed: [0.25, 3.5] | Tested: [0.2, 3.5] | Cov: 100%  
+
+  TOP 5 BEST IN-SAMPLE CONFIGURATIONS:
+  -------------------------------------------------------------------------
+    Score:   0.74 | WR: 50.39% | Sig: 23006.0 | Params: {"ema_fast": 4.0, "ema_slow": 81.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 13.0, "adx_period": 11.0, "adx_thresh": 25.0, "stoch_k": 17.0, "stoch_d": 6.0, "stoch_smooth": 9.0, "bb_period": 37.0, "bb_stdev": 1.0, "atr_period": 21.0, "atr_mult": 0.5420184300352439}
+    Score:   0.60 | WR: 50.31% | Sig: 23178.0 | Params: {"ema_fast": 3.0, "ema_slow": 81.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 13.0, "adx_period": 11.0, "adx_thresh": 25.0, "stoch_k": 17.0, "stoch_d": 6.0, "stoch_smooth": 9.0, "bb_period": 37.0, "bb_stdev": 1.0, "atr_period": 25.0, "atr_mult": 0.25}
+    Score:   0.51 | WR: 50.26% | Sig: 24593.0 | Params: {"ema_fast": 4.0, "ema_slow": 81.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 13.0, "adx_period": 11.0, "adx_thresh": 25.0, "stoch_k": 18.0, "stoch_d": 6.0, "stoch_smooth": 9.0, "bb_period": 30.0, "bb_stdev": 1.0, "atr_period": 20.0, "atr_mult": 0.5420184300352439}
+    Score:   0.42 | WR: 50.23% | Sig: 15914.0 | Params: {"ema_fast": 3.0, "ema_slow": 81.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 13.0, "adx_period": 11.0, "adx_thresh": 26.896842337603978, "stoch_k": 17.0, "stoch_d": 3.0, "stoch_smooth": 9.0, "bb_period": 27.0, "bb_stdev": 1.0, "atr_period": 25.0, "atr_mult": 0.9855449884640639}
+    Score:   0.42 | WR: 50.21% | Sig: 25841.0 | Params: {"ema_fast": 4.0, "ema_slow": 82.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 13.0, "adx_period": 11.0, "adx_thresh": 25.75761689550805, "stoch_k": 17.0, "stoch_d": 6.0, "stoch_smooth": 9.0, "bb_period": 31.0, "bb_stdev": 1.0498401585178658, "atr_period": 25.0, "atr_mult": 0.5420184300352439}
+
+  TOP 5 WORST IN-SAMPLE CONFIGURATIONS (with signals):
+  -------------------------------------------------------------------------
+    Score:  -0.88 | WR: 49.12% | Sig: 17286.0 | Params: {"ema_fast": 3.0, "ema_slow": 47.0, "macd_fast": 21.0, "macd_slow": 26.0, "macd_signal": 9.0, "adx_period": 15.0, "adx_thresh": 25.0, "stoch_k": 12.0, "stoch_d": 3.0, "stoch_smooth": 5.0, "bb_period": 20.0, "bb_stdev": 2.0, "atr_period": 14.0, "atr_mult": 2.0}
+    Score:  -0.79 | WR: 49.21% | Sig: 13298.0 | Params: {"ema_fast": 3.0, "ema_slow": 33.0, "macd_fast": 21.0, "macd_slow": 25.0, "macd_signal": 8.0, "adx_period": 18.0, "adx_thresh": 25.0, "stoch_k": 14.0, "stoch_d": 4.0, "stoch_smooth": 5.0, "bb_period": 20.0, "bb_stdev": 2.0, "atr_period": 14.0, "atr_mult": 2.0}
+    Score:  -0.77 | WR: 49.23% | Sig: 11395.0 | Params: {"ema_fast": 3.0, "ema_slow": 100.0, "macd_fast": 22.0, "macd_slow": 25.0, "macd_signal": 11.0, "adx_period": 11.0, "adx_thresh": 25.543877969175515, "stoch_k": 17.0, "stoch_d": 5.0, "stoch_smooth": 9.0, "bb_period": 24.0, "bb_stdev": 1.0, "atr_period": 16.0, "atr_mult": 1.424033031094316}
+    Score:  -0.70 | WR: 49.30% | Sig: 22026.0 | Params: {"ema_fast": 3.0, "ema_slow": 47.0, "macd_fast": 21.0, "macd_slow": 27.0, "macd_signal": 9.0, "adx_period": 12.0, "adx_thresh": 25.0, "stoch_k": 14.0, "stoch_d": 3.0, "stoch_smooth": 3.0, "bb_period": 20.0, "bb_stdev": 2.0, "atr_period": 14.0, "atr_mult": 2.0}
+    Score:  -0.70 | WR: 49.30% | Sig: 13427.0 | Params: {"ema_fast": 3.0, "ema_slow": 33.0, "macd_fast": 20.0, "macd_slow": 25.0, "macd_signal": 9.0, "adx_period": 18.0, "adx_thresh": 25.0, "stoch_k": 14.0, "stoch_d": 4.0, "stoch_smooth": 5.0, "bb_period": 20.0, "bb_stdev": 2.0, "atr_period": 14.0, "atr_mult": 2.0}
+===========================================================================

@@ -184,19 +184,32 @@ JSON:"""
         return {}
 
     def adjust_search_space(self, current_space: dict, report_text: str) -> dict:
-        prompt = f"""You are an AI Quant Algorithm adjusting a search space for a predictive trading model. 
+        prompt = f"""You are an AI Quant Algorithm adjusting a search space for a predictive trading model.
 Review the following Performance Report, which includes parameter correlations and the Top 5 Best/Worst combinations:
 {report_text}
 
 Your task is to update the search space boundaries [min, max, step] to force the next search generation into more profitable zones.
 
 CRITICAL RULES FOR ADJUSTMENT:
-1. Shift bounds lower if correlation is strongly Negative, or higher if strongly Positive.
-2. DO NOT EXPAND TO INFINITY. You must provide realistic technical indicator constraints.
-3. Look closely at the "TOP 5 BEST" and "TOP 5 WORST" runs. Shift boundaries away from values used by the worst runs, and towards values used by the best runs.
-4. Make sure min is ALWAYS less than max.
-5. DO NOT change the step sizes.
-6. Output ONLY valid JSON where keys are parameters and values are [min, max, step].
+1. POSITIVE CORRELATION + BEST NOT NEAR MAX: If a parameter shows positive correlation AND the current best
+   value is NOT near the allowed maximum, RAISE the minimum boundary to force exploration of higher values.
+   Do NOT just center tightly around the best value — push toward the max end of the range.
+   Example: adx_thresh correlation=+0.33, best=34.87, max=45 → raise min to 37-40, keep max at 45.
+2. NEGATIVE CORRELATION + BEST NOT NEAR MIN: Lower the maximum boundary to cut off high values.
+   Example: macd_fast correlation=-0.25, best=19, min=8 → lower max to 22, keep min at 8.
+3. AT MIN BOUND warning: If the best value equals or is very close to the current minimum, do NOT raise
+   the minimum further. The parameter may need to explore LOWER. Instead, widen or lower the min.
+4. DO NOT EXPAND TO INFINITY. Provide realistic technical indicator constraints.
+5. Look at TOP 5 BEST and TOP 5 WORST. Shift away from worst param values, toward best param values.
+6. Make sure min is ALWAYS less than max.
+7. DO NOT change the step sizes.
+8. MINIMUM RANGE WIDTH: New (max - min) must be at least 20% of the original range and at least 5 steps wide.
+   Never trap a parameter in a tiny range — it kills exploration.
+9. ema_slow: NEVER set min above 60. Locking ema_slow to a narrow high band prevents discovery of different
+   trend-following speeds.
+10. bb_stdev: Do not lock min at 1.0. If signals are too high, allow exploration of higher bb_stdev (wider
+    bands = fewer signals). Keep min at 1.0 but allow max to rise toward 3.0-4.0.
+11. Output ONLY valid JSON where keys are parameters and values are [min, max, step].
 
 Current Search Space:
 {json.dumps(current_space, indent=2)}

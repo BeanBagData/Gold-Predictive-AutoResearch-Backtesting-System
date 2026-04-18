@@ -38,6 +38,22 @@ class OllamaAdvisor:
         self.model = model
         self.endpoint = f"{self.host}/api/generate"
 
+    @staticmethod
+    def _is_usable(obj: dict) -> bool:
+        """
+        Reject hallucinated nested garbage (e.g. {"downsampled": [{"key":...}]}).
+        A usable response has at least one top-level value that is a scalar or a
+        list whose first element is a number (adjust_search_space format).
+        """
+        if not isinstance(obj, dict) or not obj:
+            return False
+        for v in obj.values():
+            if isinstance(v, (int, float, str, bool)):
+                return True
+            if isinstance(v, list) and v and isinstance(v[0], (int, float)):
+                return True
+        return False
+
     def _call_api(self, prompt: str) -> dict:
         payload = {
             "model": self.model,
@@ -53,33 +69,47 @@ class OllamaAdvisor:
 
             response_text = response.json().get("response", "")
 
-            # Strategy 1: entire response is valid JSON
-            try:
-                return json.loads(response_text)
-            except json.JSONDecodeError:
-                pass
+            # Guard: responses >8 KB are almost certainly hallucinated garbage.
+            # Valid param JSON is <2 KB; log and bail early.
+            if len(response_text) > 8000:
+                logger.warning("Ollama response suspiciously large (%d chars) — skipping parse.",
+                               len(response_text))
+                return {}
 
-            # Strategy 2: raw_decode stops at end of first complete JSON object,
-            # ignoring any trailing text or extra braces that fool the regex approach
             decoder = json.JSONDecoder()
-            start = response_text.find('{')
-            if start >= 0:
+
+            def _try_parse(text: str) -> dict:
+                # Strategy A: whole text is valid JSON
                 try:
-                    obj, _ = decoder.raw_decode(response_text, start)
-                    return obj
+                    obj = json.loads(text)
+                    if self._is_usable(obj):
+                        return obj
                 except json.JSONDecodeError:
                     pass
+                # Strategy B: raw_decode from first '{' — stops at end of first object
+                start = text.find('{')
+                if start >= 0:
+                    try:
+                        obj, _ = decoder.raw_decode(text, start)
+                        if self._is_usable(obj):
+                            return obj
+                    except json.JSONDecodeError:
+                        pass
+                return {}
 
-            # Strategy 3: strip markdown fences and retry
+            # First attempt on raw response
+            result = _try_parse(response_text)
+            if result:
+                return result
+
+            # Strip markdown fences and retry
             cleaned = re.sub(r'```(?:json)?|```', '', response_text).strip()
-            start = cleaned.find('{')
-            if start >= 0:
-                try:
-                    obj, _ = decoder.raw_decode(cleaned, start)
-                    return obj
-                except json.JSONDecodeError as e:
-                    logger.error("Ollama JSON parse failed after all strategies: %s | snippet: %.120s",
-                                 e, response_text[max(0, start):start + 200])
+            result = _try_parse(cleaned)
+            if result:
+                return result
+
+            logger.warning("Ollama returned unusable JSON — skipping this cycle. "
+                           "Snippet: %.120s", response_text[:120])
 
         except Exception as e:
             logger.error("Ollama request failed: %s", e)
@@ -102,29 +132,29 @@ class OllamaAdvisor:
         if stale_count > 10:
             stale_instruction = "FORCE DIVERGENCE: We are stuck. Move parameters to the opposite side of the range to find a new directional edge."
 
-        prompt = f"""Output JSON with exactly these fields: {keys}
+        prompt = f"""You are a trading parameter optimiser. Output a FLAT JSON object — no nested arrays, no explanations, no markdown.
 
-Ranges: {ranges_str}
+The JSON must have EXACTLY these keys with numeric values: {keys}
 
-Current best predictive TA params (Accuracy: {metrics.get('win_rate', 'N/A')}%):
+Allowed ranges per parameter: {ranges_str}
+
+Current best params (Win Rate: {metrics.get('win_rate', 'N/A')}%):
 {json.dumps(current_params)}
 
-HISTORICAL CONTEXT:
-Top 5 Best Parameter Sets (Benchmark - converge around these traits):
+Top 5 Best (aim toward these):
 {best_str}
 
-Top 5 Worst Parameter Sets (AVOID THESE AT ALL COSTS):
+Top 5 Worst (never output these values):
 {worst_str}
 
-CRITICAL RULES:
-1. Output ONLY valid JSON, no text.
-2. We are maximizing the probability of predicting the price direction {target_min} minutes ahead (candle close).
-3. DO NOT output absurd mathematical values to "hack" the indicators.
-4. ema_fast MUST BE LESS THAN ema_slow.
-5. macd_fast MUST BE LESS THAN macd_slow.
-6. DO NOT duplicate parameters found in the "Top 5 Worst" list.
+Rules:
+1. ema_fast < ema_slow
+2. macd_fast < macd_slow
+3. All values within the allowed ranges above
+4. Do NOT copy any parameter set from the Worst list
 {stale_instruction}
 
+Output ONLY the flat JSON with the {len(keys)} numeric fields. No other text.
 JSON:"""
 
         suggested = self._call_api(prompt)

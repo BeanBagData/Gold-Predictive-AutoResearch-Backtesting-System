@@ -240,6 +240,8 @@ def evaluate(report: dict, tf: str, n: int) -> RunResult:
         verdict = 'SWEET_SPOT'
     elif in_wr and in_spd and not quality_pass:
         verdict = 'QUALITY_FAIL'      # range correct but quality gates failed
+    elif spd > target['spd_max']:
+        verdict = 'TOO_FREQUENT'      # signals far above target — params too loose
     elif wr > target['wr_max'] and spd < target['spd_min']:
         verdict = 'OVERFITTING'       # ghost hunter — high WR, too few trades
     elif wr > target['wr_max']:
@@ -270,6 +272,7 @@ def dynamic_step(result: RunResult, target: dict, n_profile: dict) -> int:
     """
     wr_close = result.wr >= (target['wr_min'] - 1.5)
     spd_close = result.spd >= (target['spd_min'] * 0.75)
+    # TOO_FREQUENT excluded — signals 2× target need large N jumps to explore new space, not fine-step
     near = result.verdict in ('SWEET_SPOT', 'APPROACHING', 'QUALITY_FAIL') or (wr_close and spd_close)
     return 1 if near else n_profile['n_step']
 
@@ -292,6 +295,15 @@ def algorithmic_n(state: PhaseState, result: RunResult) -> int:
 
     elif result.verdict == 'APPROACHING':
         return min(n + step, max_n)           # step=1 once close
+
+    elif result.verdict == 'TOO_FREQUENT':
+        # Signals too high — N isn't the real lever, but try a divergent jump to
+        # force Ollama into different param regions (higher ADX thresh, higher bb_stdev)
+        good = [r for r in h if r.spd <= target['spd_max']]
+        if good:
+            return max(good, key=lambda r: r.oos_score).n
+        # No prior run had acceptable signal count — try a larger N jump to escape
+        return min(n + step * 3, max_n)
 
     elif result.verdict == 'TOO_RARE':
         good = [r for r in h if r.spd >= target['spd_min']]
@@ -316,8 +328,19 @@ def choose_next_n(state: PhaseState, result: RunResult,
     max_n   = state.n_profile['max_n']
     hist_dicts = [{'n': r.n, 'wr': r.wr, 'spd': r.spd, 'verdict': r.verdict}
                   for r in state.history]
-    metrics = {'win_rate': result.wr, 'signals_per_day': result.spd,
-               'win_rate_stability': result.stability}
+
+    # Compute delta vs previous run so Ollama can detect stagnation
+    prev = state.history[-2] if len(state.history) >= 2 else None
+    delta_wr    = round(result.wr    - prev.wr,        3) if prev else 0.0
+    delta_score = round(result.oos_score - prev.oos_score, 4) if prev else 0.0
+
+    metrics = {
+        'win_rate':          result.wr,
+        'signals_per_day':   result.spd,
+        'win_rate_stability': result.stability,
+        'delta_wr':          delta_wr,
+        'delta_oos_score':   delta_score,
+    }
 
     suggestion = advisor.suggest_n_adjustment(
         current_n=result.n, metrics=metrics, sweet_spot=target,
@@ -390,7 +413,7 @@ def print_result(state: PhaseState, result: RunResult):
   {state.tf.upper()} | Attempt {state.attempt}/{MAX_ATTEMPTS} | N={result.n} | step={step} | {sw}
 {'─'*62}
   Win Rate:        {result.wr:.2f}%   target {target['wr_min']}–{target['wr_max']}%
-  Signals/Day:     {result.spd:.1f}    target {target['spd_min']}–{target['spd_max']}
+  Signals/Day:     {result.spd:.1f}    target {target['spd_min']}–{target['spd_max']}{'  !! TOO HIGH' if result.spd > target['spd_max'] else ''}
   Total Signals:   {result.total_signals}
   OOS Score:       {result.oos_score:.4f}
 {'─'*62}

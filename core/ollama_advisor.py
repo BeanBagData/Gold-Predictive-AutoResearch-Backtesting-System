@@ -128,15 +128,21 @@ JSON:"""
             hist_summary.append(f"  N={h['n']}: WR={h['wr']:.2f}% SPD={h['spd']:.1f} verdict={h['verdict']}")
         hist_str = '\n'.join(hist_summary) if hist_summary else '  (no history yet)'
 
+        delta_wr    = metrics.get('delta_wr', 0.0)
+        delta_score = metrics.get('delta_oos_score', 0.0)
+        stagnant    = abs(delta_wr) < 0.01 and abs(delta_score) < 0.01
+
         prompt = f"""You are optimizing an autoresearch pipeline for a gold scalping EA.
 The pipeline runs parameter searches in cycles (N = number of Ollama advisor cycles).
 Your job: suggest the best next N value to find the "sweet spot" parameters.
 
 CURRENT RUN (N={current_n}):
-  Win Rate:      {metrics.get('win_rate', 0):.2f}%
+  Win Rate:      {metrics.get('win_rate', 0):.2f}%  (change vs prev run: {delta_wr:+.3f}%)
   Signals/Day:   {metrics.get('signals_per_day', 0):.1f}
   Stability:     {metrics.get('win_rate_stability', 0):.1f}%
+  OOS Score Δ:   {delta_score:+.4f}
   Verdict:       {verdict}
+  STAGNATING:    {'YES — no improvement from last run' if stagnant else 'No'}
 
 SWEET SPOT TARGETS:
   Win Rate:      {sweet_spot['wr_min']}% – {sweet_spot['wr_max']}%
@@ -150,8 +156,15 @@ RULES:
 - UNDERFITTING (low WR, low signals): increase N significantly (x1.5 to x2)
 - OVERFITTING (high WR >target_max, very low signals): decrease N — too many cycles overfit
 - TOO_RARE (WR in target but signals too low): moderately decrease N
+- TOO_FREQUENT (signals WAY above spd_max — e.g. 87/day vs target 25-45): params are too loose/noisy.
+  Increase N significantly (+20 to +40) to force exploration of tighter filter zones.
+  Higher ADX threshold, higher bb_stdev, and lower stoch_smooth all reduce signal count.
+  Do NOT use small step increments — this requires a large search jump.
 - APPROACHING (close but not in sweet spot): increase N moderately (+5 to +15)
+- QUALITY_FAIL (range correct but a quality gate failed): fine step ±1 to find the boundary
 - SWEET_SPOT: nudge N by ±5 to see if score improves
+- STAGNATING (change in WR and score both near zero): FORCE DIVERGENCE — jump N by at least +20,
+  or return to a historically better N from the history list. Do not keep incrementing by 5.
 - If a previous N produced better results, recommend returning to it
 - N must be between 5 and {sweet_spot.get('max_n', 100)} — DO NOT exceed the max_n ceiling
 

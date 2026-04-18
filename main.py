@@ -101,13 +101,14 @@ def run_manual(args):
     csv_path = args.csv if args.csv else _find_csv()
     df = load_mt5_csv(csv_path)
     target_bars = max(1, args.horizon)
+    bars_per_day = _detect_bars_per_day(df)
     logger.info("Manual Mode: Loading %s (Horizon: %d bars)", csv_path, target_bars)
-    
+
     params_dict = _load_params_json(args.params) if (args.params and os.path.exists(args.params)) else {}
     ea_params = _dict_to_params(params_dict)
-    
+
     result = run_predictive_backtest(df, params=ea_params, target_bars=target_bars)
-    report = generate_report(result, df, target_bars=target_bars)
+    report = generate_report(result, df, target_bars=target_bars, bars_per_day=bars_per_day)
     print(report)
     _save_report(report, 'ta_predictive_backtest', args.out)
 
@@ -160,7 +161,8 @@ def run_auto(args):
         report_text = generate_advanced_autoresearch_report(
             result_oos=res_oos, result_is=res_insample, best_params=ar.best_params,
             df_oos=df_oos, df_is=df_insample, history=history,
-            param_space=ar.param_space, target_bars=target_bars
+            param_space=ar.param_space, target_bars=target_bars,
+            bars_per_day=bars_per_day,
         )
     else:
         report_text = "No configurations generated enough signals."
@@ -172,11 +174,12 @@ def run_debug(args):
     csv_path = args.csv if args.csv else _find_csv()
     df = load_mt5_csv(csv_path)
     target_bars = max(1, args.horizon)
+    bars_per_day = _detect_bars_per_day(df)
     logger.info("Debug Mode: Scanning %s (Horizon: %d bars)", csv_path, target_bars)
-    
+
     p = PredictorParams()
     result = run_predictive_backtest(df, params=p, target_bars=target_bars)
-    print(generate_report(result, df, target_bars=target_bars))
+    print(generate_report(result, df, target_bars=target_bars, bars_per_day=bars_per_day))
 
 def main():
     p = argparse.ArgumentParser(description='Claude Gold TA Predictor & AutoResearch')

@@ -46,17 +46,43 @@ class OllamaAdvisor:
             "format": "json"
         }
         try:
-            response = requests.post(self.endpoint, json=payload, timeout=600)
-            if response.status_code == 200:
-                data = response.json()
-                response_text = data.get("response", "")
-                match = re.search(r'\{.*\}', response_text, re.DOTALL)
-                if match:
-                    return json.loads(match.group(0))
-            else:
-                logger.error(f"Ollama API returned {response.status_code}: {response.text}")
+            response = requests.post(self.endpoint, json=payload, timeout=1200)
+            if response.status_code != 200:
+                logger.error("Ollama API returned %s: %s", response.status_code, response.text[:200])
+                return {}
+
+            response_text = response.json().get("response", "")
+
+            # Strategy 1: entire response is valid JSON
+            try:
+                return json.loads(response_text)
+            except json.JSONDecodeError:
+                pass
+
+            # Strategy 2: raw_decode stops at end of first complete JSON object,
+            # ignoring any trailing text or extra braces that fool the regex approach
+            decoder = json.JSONDecoder()
+            start = response_text.find('{')
+            if start >= 0:
+                try:
+                    obj, _ = decoder.raw_decode(response_text, start)
+                    return obj
+                except json.JSONDecodeError:
+                    pass
+
+            # Strategy 3: strip markdown fences and retry
+            cleaned = re.sub(r'```(?:json)?|```', '', response_text).strip()
+            start = cleaned.find('{')
+            if start >= 0:
+                try:
+                    obj, _ = decoder.raw_decode(cleaned, start)
+                    return obj
+                except json.JSONDecodeError as e:
+                    logger.error("Ollama JSON parse failed after all strategies: %s | snippet: %.120s",
+                                 e, response_text[max(0, start):start + 200])
+
         except Exception as e:
-            logger.error(f"Ollama request failed: {e}")
+            logger.error("Ollama request failed: %s", e)
         return {}
 
     def suggest_mutation(self, current_params: dict, metrics: dict, param_space: dict, iteration: int, stale_count: int = 0, target_bars: int = 1, top_best: list = None, top_worst: list = None) -> dict:
@@ -148,6 +174,7 @@ SWEET SPOT TARGETS:
   Win Rate:      {sweet_spot['wr_min']}% – {sweet_spot['wr_max']}%
   Signals/Day:   {sweet_spot['spd_min']} – {sweet_spot['spd_max']}
   Stability:     > Win Rate (must be higher than actual Win Rate)
+  Streaks:       max_consec_correct must be >= 2 × max_consec_incorrect
 
 RECENT HISTORY (last 6 runs):
 {hist_str}

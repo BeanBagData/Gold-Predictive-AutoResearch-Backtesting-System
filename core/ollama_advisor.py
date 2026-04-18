@@ -13,30 +13,35 @@ logger = logging.getLogger(__name__)
 
 # Hard limits to prevent LLM indicator hacking
 HARD_LIMITS = {
-    'ema_fast': (3, 50),
-    'ema_slow': (10, 200),
-    'macd_fast': (2, 30),
-    'macd_slow': (10, 60),
+    'ema_fast':    (3, 50),
+    'ema_slow':    (10, 200),
+    'macd_fast':   (2, 30),
+    'macd_slow':   (10, 60),
     'macd_signal': (2, 20),
-    'adx_period': (5, 50),
-    'adx_thresh': (10.0, 45.0),
-    'stoch_k': (3, 40),
-    'stoch_d': (2, 15),
-    'stoch_smooth': (1, 15),
-    'bb_period': (10, 60),
-    'bb_stdev': (1.0, 4.0),
-    'atr_period': (2, 40),
-    'atr_mult': (0.0, 3.5),
-    'rsi_period': (2, 30),
-    'rsi_oversold': (10.0, 45.0),
-    'rsi_overbought': (55.0, 90.0)
+    'adx_period':  (5, 50),
+    'adx_thresh':  (10.0, 45.0),
+    'stoch_k':     (3, 40),
+    'stoch_d':     (2, 15),
+    'stoch_smooth':(1, 15),
+    'bb_period':   (10, 60),
+    'bb_stdev':    (1.0, 4.0),
+    'atr_period':  (2, 40),
+    'atr_mult':    (0.0, 3.5),
+
 }
 
 class OllamaAdvisor:
-    def __init__(self, host: str = "http://localhost:11434", model: str = "Gemma4:e2b"):
+    def __init__(self, host: str = "http://localhost:11434", model: str = "Gemma4:e2b",
+                 locked_params: dict = None):
         self.host = host
         self.model = model
         self.endpoint = f"{self.host}/api/generate"
+        # Parameters that are already optimised and must not be mutated.
+        # Ollama is told about them so it understands the fixed context it's working within.
+        self.locked_params = locked_params or {}
+        self._locked_str = (
+            json.dumps(self.locked_params) if self.locked_params else "none"
+        )
 
     @staticmethod
     def _is_usable(obj: dict) -> bool:
@@ -117,10 +122,13 @@ class OllamaAdvisor:
 
     def suggest_mutation(self, current_params: dict, metrics: dict, param_space: dict, iteration: int, stale_count: int = 0, target_bars: int = 1, top_best: list = None, top_worst: list = None) -> dict:
         keys = list(param_space.keys())
-        ranges_str = json.dumps({k: [lo, hi] for k, (lo, hi, step) in param_space.items()})
-        target_min = target_bars * 5
 
-        # Format historical context for LLM
+        # Plain-text ranges — avoids model mirroring the nested [lo,hi] array format
+        ranges_str = ', '.join(f"{k}:{lo}-{hi}" for k, (lo, hi, _) in param_space.items())
+
+        # Strip locked/static params so Ollama only sees researchable parameters
+        researchable_params = {k: v for k, v in current_params.items() if k in param_space}
+
         best_str = "None"
         worst_str = "None"
         if top_best:
@@ -132,29 +140,30 @@ class OllamaAdvisor:
         if stale_count > 10:
             stale_instruction = "FORCE DIVERGENCE: We are stuck. Move parameters to the opposite side of the range to find a new directional edge."
 
-        prompt = f"""You are a trading parameter optimiser. Output a FLAT JSON object — no nested arrays, no explanations, no markdown.
+        prompt = f"""Output JSON with exactly these fields: {keys}
 
-The JSON must have EXACTLY these keys with numeric values: {keys}
+Locked params (already optimised, do not output): {self._locked_str}
+Ranges: {ranges_str}
 
-Allowed ranges per parameter: {ranges_str}
+Current best predictive TA params (Accuracy: {metrics.get('win_rate', 'N/A')}%):
+{json.dumps(researchable_params)}
 
-Current best params (Win Rate: {metrics.get('win_rate', 'N/A')}%):
-{json.dumps(current_params)}
-
-Top 5 Best (aim toward these):
+HISTORICAL CONTEXT:
+Top 5 Best Parameter Sets (Benchmark - converge around these traits):
 {best_str}
 
-Top 5 Worst (never output these values):
+Top 5 Worst Parameter Sets (AVOID THESE AT ALL COSTS):
 {worst_str}
 
-Rules:
-1. ema_fast < ema_slow
-2. macd_fast < macd_slow
-3. All values within the allowed ranges above
-4. Do NOT copy any parameter set from the Worst list
+CRITICAL RULES:
+1. Output ONLY valid flat JSON, no text, no nested objects.
+2. We are maximizing the probability of predicting price direction ahead.
+3. DO NOT output absurd mathematical values to "hack" the indicators.
+4. ema_fast MUST BE LESS THAN ema_slow.
+5. macd_fast MUST BE LESS THAN macd_slow.
+6. DO NOT duplicate parameters found in the "Top 5 Worst" list.
 {stale_instruction}
 
-Output ONLY the flat JSON with the {len(keys)} numeric fields. No other text.
 JSON:"""
 
         suggested = self._call_api(prompt)
@@ -242,6 +251,11 @@ JSON:"""
 
     def adjust_search_space(self, current_space: dict, report_text: str) -> dict:
         prompt = f"""You are an AI Quant Algorithm adjusting a search space for a predictive trading model.
+
+LOCKED PARAMETERS (already optimised — these are fixed and not part of the search space):
+{self._locked_str}
+You are only adjusting the RESEARCHABLE parameters below. Find boundaries that complement the locked params above.
+
 Review the following Performance Report, which includes parameter correlations and the Top 5 Best/Worst combinations:
 {report_text}
 

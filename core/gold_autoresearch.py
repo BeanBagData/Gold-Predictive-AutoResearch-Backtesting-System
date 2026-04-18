@@ -121,6 +121,12 @@ def compute_predictive_score(result, n_bars: int, bars_per_day: int = 288) -> di
 
     freq_mod = math.log10(max(1, signals_per_day)) if signals_per_day >= 2.0 else 0.5
 
+    # Penalise when signals exceed 1.5× the daily target — noise-driven over-trading.
+    # Smooth sqrt decay: at 3× target, freq_mod is halved; no cliff, no hard cap.
+    upper_cap = signals_per_day_target * 1.5
+    if signals_per_day > upper_cap:
+        freq_mod *= (upper_cap / signals_per_day) ** 0.5
+
     if accuracy_score > 0:
         imbalance = abs(result.up_signals - result.down_signals) / max(1, n)
         balance_penalty = 1.0 - (imbalance * 0.5)
